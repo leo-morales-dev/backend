@@ -29,7 +29,12 @@ app.use(cors());
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: false }));
 
-// Montar las rutas
+// Ruta de Health Check para Render
+app.get('/healthz', (req, res) => {
+  res.send('OK');
+});
+
+// Montar las rutas de la API
 app.use('/api',        autoRutas);    // POST /api/agregar, GET /api/autos, etc.
 app.use('/api/marcas',  marcaRutas);   // GET/POST/DELETE marcas
 app.use('/api/modelos', modeloRutas);  // GET/POST/PUT/DELETE modelos
