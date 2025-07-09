@@ -1,8 +1,9 @@
 // backend/routes/modelo.routes.js
 
 const express = require('express');
-const router = express.Router();
-const Modelo = require('../models/Modelo');
+const router  = express.Router();
+const Modelo  = require('../models/Modelo');
+const Auto    = require('../models/Auto'); // Para contar referencias
 
 /**
  * GET /api/modelos
@@ -12,12 +13,8 @@ const Modelo = require('../models/Modelo');
 router.get('/', async (req, res) => {
   try {
     const filtro = {};
-    if (req.query.marca) {
-      filtro.marca = req.query.marca;
-    }
-    // Si quisieras también poblar la marca con su nombre:
-    // .populate('marca', 'name')
-    const modelos = await Modelo.find(filtro);
+    if (req.query.marca) filtro.marca = req.query.marca;
+    const modelos = await Modelo.find(filtro).populate('marca', 'name');
     res.send(modelos);
   } catch (err) {
     console.error('Error listando modelos:', err);
@@ -42,7 +39,7 @@ router.post('/', async (req, res) => {
 
 /**
  * PUT /api/modelos/:id
- * Actualiza solo el nombre de un modelo existente.
+ * Actualiza sólo el nombre de un modelo existente.
  */
 router.put('/:id', async (req, res) => {
   try {
@@ -63,11 +60,20 @@ router.put('/:id', async (req, res) => {
 
 /**
  * DELETE /api/modelos/:id
- * Elimina un modelo por su ID.
+ * Sólo elimina el modelo si NO está siendo usado por ningún Auto.
  */
 router.delete('/:id', async (req, res) => {
+  const modeloId = req.params.id;
   try {
-    const eliminado = await Modelo.findByIdAndDelete(req.params.id);
+    // 1. Verificar si hay autos que lo referencian
+    const count = await Auto.countDocuments({ modelo: modeloId });
+    if (count > 0) {
+      return res
+        .status(400)
+        .send({ error: 'No se puede eliminar: hay autos asignados a este modelo.' });
+    }
+    // 2. Si no hay referencias, eliminar
+    const eliminado = await Modelo.findByIdAndDelete(modeloId);
     if (!eliminado) {
       return res.status(404).send({ error: 'Modelo no encontrado' });
     }
