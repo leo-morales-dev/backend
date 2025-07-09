@@ -1,11 +1,14 @@
 // backend/routes/marca.routes.js
 
 const express = require('express');
-const router = express.Router();
-const Marca = require('../models/Marca');
-const Modelo = require('../models/Modelo');  // <-- Importa el modelo
+const router  = express.Router();
+const Marca   = require('../models/Marca');
+const Auto    = require('../models/Auto'); // Para contar referencias
 
-// Listar todas las marcas
+/**
+ * GET /api/marcas
+ * Listar todas las marcas.
+ */
 router.get('/', async (req, res) => {
   try {
     const marcas = await Marca.find();
@@ -16,35 +19,42 @@ router.get('/', async (req, res) => {
   }
 });
 
-// Agregar una nueva marca
+/**
+ * POST /api/marcas
+ * Crear una nueva marca.
+ */
 router.post('/', async (req, res) => {
   try {
     const nuevaMarca = await Marca.create({ name: req.body.name });
-    res.send(nuevaMarca);
+    res.status(201).send(nuevaMarca);
   } catch (err) {
     console.error('Error creando marca:', err);
     res.status(500).send(err);
   }
 });
 
-// Eliminar una marca y todos sus modelos asociados
+/**
+ * DELETE /api/marcas/:id
+ * Sólo elimina la marca si NO está siendo usada por ningún Auto.
+ */
 router.delete('/:id', async (req, res) => {
   const marcaId = req.params.id;
   try {
-    // 1) Elimina la marca
-    const marca = await Marca.findByIdAndDelete(marcaId);
-    if (!marca) {
+    // 1. Verificar si hay autos que la referencian
+    const count = await Auto.countDocuments({ marca: marcaId });
+    if (count > 0) {
+      return res
+        .status(400)
+        .send({ error: 'No se puede eliminar: hay autos asignados a esta marca.' });
+    }
+    // 2. Si no hay referencias, eliminar
+    const eliminado = await Marca.findByIdAndDelete(marcaId);
+    if (!eliminado) {
       return res.status(404).send({ error: 'Marca no encontrada' });
     }
-
-    // 2) Elimina en cascada todos los modelos de esa marca
-    const result = await Modelo.deleteMany({ marca: marcaId });
-    console.log(`Borrados ${result.deletedCount} modelos de la marca "${marca.name}"`);
-
-    // 3) Respuesta 204 (No Content)
     res.sendStatus(204);
   } catch (err) {
-    console.error('Error eliminando marca y modelos asociados:', err);
+    console.error('Error eliminando marca:', err);
     res.status(500).send(err);
   }
 });
